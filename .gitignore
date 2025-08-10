@@ -1,0 +1,15 @@
+# Игнорируемые файлы и папки
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.env
+*.log
+*.sqlite
+*.txt
+*.md
+*.ini
+*.yml
+*.yaml
