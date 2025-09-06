@@ -1,3 +1,4 @@
+import json
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
@@ -34,7 +35,16 @@ class SettingsRedis(BaseSettings):
     
 class Admins_bot(BaseSettings):
     SUPER_ADMINS: List[int]
-    model_config = SettingsConfigDict(env_file='.env',extra="ignore")
+
+    model_config = SettingsConfigDict(env_file='.env', extra="ignore")
+
+    @classmethod
+    def _parse_env_var(cls, field_name: str, value):
+        if field_name == "SUPER_ADMINS" and isinstance(value, str):
+            return json.loads(value)
+        return value
+
+admins_bot = Admins_bot()
     
 
     
