@@ -12,7 +12,7 @@ from config import settings_db, admins_bot
 
 
 DATABASE_URL = settings_db.DATABASE_URL_asyncpg
-engine = create_async_engine(DATABASE_URL, echo = True)
+engine = create_async_engine(DATABASE_URL, echo = False)
 session_maker = async_sessionmaker(bind=engine,class_=AsyncSession,expire_on_commit=False)
 
 async def create_db():

@@ -52,7 +52,7 @@ async def get_products(level: int,
         ))
     if result["has_next"]:
         keyboard.add(InlineKeyboardButton(
-            text="Вперёд ➡️",
+            text="Листай каталог ➡️",
             callback_data=MenuCallBack(level=level, menu_name=menu_name, city_id=city_id, category=category, page=page+1).pack()
         ))
     keyboard.add(InlineKeyboardButton(

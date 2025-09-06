@@ -2,6 +2,7 @@ from venv import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from aiogram.types import InputMediaPhoto
 
+from keyboards.menu_keyboards import build_product_keyboard
 from orm_query.paginator import UniversalPaginator, pages
 
 from keyboards.inline import  get_user_main_btns
@@ -27,64 +28,47 @@ async def menu_level_0(session, level, menu_name):
     keyboard_markup = get_user_main_btns(level=level)
     return welcome_text, keyboard_markup
 
-from aiogram.types import InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards.inline import MenuCallBack  # твой CallbackData класс
 
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
 
 async def menu_level_1(session: AsyncSession, level: int, menu_name: str, page: int = 1):
-    
-
     per_page = 1
     result = await get_products_page(session, page, per_page)
+
     print(f"Page={page}, has_previous={result['has_previous']}, has_next={result['has_next']}, total_count={result['total_count']}")
 
-    items = result['items']
+    items = result["items"]
     if not items:
         return "Товары не найдены", None
 
     product = items[0]
 
-    media = InputMediaPhoto(
-        media=product.photo_url,
-        caption=f"<b>{product.name}</b>\n\n{product.description or 'Описание отсутствует'}",
+    if product.photo_url:
+        content = InputMediaPhoto(
+            media=product.photo_url,
+            caption=(
+                f"<b>✨ {product.name}</b>\n"
+                f"<i>СУМКА ИЗ БУСИН</i>\n"
+                f"• • • • •"
+            ),
+            parse_mode="HTML"
+        )
+    else:
+        content = (
+            f"<b>✨ {product.name}</b>\n"
+            f"<i>СУМКА ИЗ БУСИН</i>\n"
+            f"• • • • •"
+        )
+
+    keyboard = build_product_keyboard(
+        level=level,
+        menu_name=menu_name,
+        page=page,
+        has_previous=result["has_previous"],
+        has_next=result["has_next"],
+        product_id=product.id,
     )
 
-    keyboard = InlineKeyboardBuilder()
-
-    buttons_navigation = []
-
-    if result["has_previous"]:
-        buttons_navigation.append(
-            InlineKeyboardButton(
-                text="⬅️ Назад",
-                callback_data=MenuCallBack(level=level, menu_name=menu_name, page=page - 1).pack()
-            )
-        )
-
-    if result["has_next"]:
-        buttons_navigation.append(
-            InlineKeyboardButton(
-                text="Вперёд ➡️",
-                callback_data=MenuCallBack(level=level, menu_name=menu_name, page=page + 1).pack()
-            )
-        )
-
-    # Добавляем вместе в один ряд (если есть хотя бы одна кнопка)
-    if buttons_navigation:
-        keyboard.row(*buttons_navigation)
-
-    # Добавляем кнопку "Заказать" в отдельный ряд
-    keyboard.row(
-        InlineKeyboardButton(
-            text="📝 Заказать",
-            callback_data=MenuCallBack(level=5, menu_name="confirm", product_id=product.id).pack()
-        )
-    )
-
-
-    return media, keyboard.as_markup()
+    return content, keyboard
 
 
      

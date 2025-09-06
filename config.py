@@ -20,17 +20,17 @@ class Settings_bot(BaseSettings):
     
     model_config = SettingsConfigDict(env_file='.env',extra="ignore")
     
-# class SettingsRedis(BaseSettings):
-#     REDIS_HOST: str
-#     REDIS_PORT: int
-#     REDIS_DB: int
+class SettingsRedis(BaseSettings):
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
 
-#     @property
-#     def REDIS_URL(self) -> str:
-#         return (f"redis://{self.REDIS_HOST}"
-#                 f":{self.REDIS_PORT}/{self.REDIS_DB}")
+    @property
+    def REDIS_URL(self) -> str:
+        return (f"redis://{self.REDIS_HOST}"
+                f":{self.REDIS_PORT}/{self.REDIS_DB}")
 
-#     model_config = SettingsConfigDict(env_file='.env', extra="ignore")
+    model_config = SettingsConfigDict(env_file='.env', extra="ignore")
     
 class Admins_bot(BaseSettings):
     SUPER_ADMINS: List[int]
@@ -43,7 +43,7 @@ class Admins_bot(BaseSettings):
 settings_db = Settings_db()
 settings_bot = Settings_bot()
 admins_bot = Admins_bot()
-# settings_redis = SettingsRedis()
+settings_redis = SettingsRedis()
 
 
 

@@ -1,27 +1,37 @@
 import os
 import logging
 from venv import logger
-from aiogram.types import Message, CallbackQuery
-from aiogram import types
-from aiogram.fsm.context import FSMContext
-from aiogram.filters import CommandStart
-from aiogram import Router
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from aiogram import F
-from aiogram.exceptions import TelegramMigrateToChat
 from dotenv import load_dotenv
 
+from aiogram import Router, F, types
+from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
+from aiogram.filters import CommandStart
+from aiogram.exceptions import TelegramMigrateToChat
+from aiogram.fsm.context import FSMContext
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
+from models.users_model import User
+from orm_query.orders import create_order
+from orm_query.product import find_product
+from orm_query.user import find_user_by_id
+from states.order_state import OrderForm
 from handlers.menu_processing import get_menu_level_content
 from keyboards.inline import MenuCallBack
-from models.users_model import User
-from states.order_state import OrderForm
+from keyboards.reply_kb import keyboard_yes_no, keyboard_phone
+from utils.check_function import validate_city, validate_phone
+
 
 user_menu = Router()
     
-    
+
+@user_menu.message(F.text == "т")
+async def test_product(message: Message, session: AsyncSession):
+    product = await find_product(session, 1)  # поставь реальный ID из базы
+    await message.answer(f"Продукт: {product.name if product else 'Не найден'}")
+
 @user_menu.message(CommandStart())
 async def cmd_start(message: Message, session: AsyncSession):
     content, reply_markup = await get_menu_level_content(session, level=0, menu_name='main')
@@ -45,10 +55,12 @@ async def menu_callback_handler(
     # Если level == 5 → запускаем FSM
     if callback_data.level == 5:
         await state.clear()
+        # Сохраняем product_id в FSM
+        await state.update_data(product_id=callback_data.product_id)
         await state.set_state(OrderForm.color)  # Запускаем FSM с шага выбора цвета
         await callback.message.answer("Введите желаемый цвет 🖌")
         await callback.answer()
-        return  # Завершаем выполнение обработчика, чтобы не шла дальше логика меню
+        return
 
     # Для остальных уровней — логика меню
     content, markup = await get_menu_level_content(
@@ -66,54 +78,18 @@ async def menu_callback_handler(
 
     await callback.answer()
 
-
-
-
-@user_menu.message(F.photo)
-async def photo_test(message:Message):
-    await message.answer(message.photo[-1].file_id)
-
-
-from aiogram import types
-from aiogram.fsm.context import FSMContext
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from sqlalchemy import select
-from models.users_model import User
-from states.order_state import OrderForm
-
+# @user_menu.message(F.photo)
+# async def photo_test(message:Message):
+#     await message.answer(message.photo[-1].file_id)
 
 # Шаг 1: ввод цвета (обычный текст)
 @user_menu.message(OrderForm.color)
 async def process_color(message: types.Message, state: FSMContext):
     await state.update_data(color=message.text)
 
-    # Reply-кнопки "Да"/"Нет" для выбора прокладки
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Да"), KeyboardButton(text="Нет")]
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
     await state.set_state(OrderForm.lining)
-    await message.answer("Желаете выбрать прокладку?", reply_markup=keyboard)
+    await message.answer("Желаете выбрать подкладку?", reply_markup=keyboard_yes_no)
 
-
-# Шаг 2: ответ "Да" или "Нет" — ввод прокладки или пропуск
-# @user_menu.message(OrderForm.lining)
-# async def process_lining(message: types.Message, state: FSMContext):
-#     if message.text == "Да":
-#         # Пользователь хочет ввести подкладку, меняем состояние на ввод текста прокладки
-#         await state.set_state(OrderForm.lining_text)
-#         await message.answer("Введите желаемый подклад ✂", reply_markup=ReplyKeyboardRemove())
-#     elif message.text == "Нет":
-#         # Пользователь пропускает подкладку, сохраняем пустое значение и переходим к комментарию
-#         await state.update_data(lining="(не выбрано)")
-#         await state.set_state(OrderForm.comment)
-#         await message.answer("Введите комментарий 📝", reply_markup=ReplyKeyboardRemove())
-#     else:
-#         # Некорректный ответ — просим ответить "Да" или "Нет"
-#         await message.answer('Пожалуйста, выберите "Да" или "Нет" кнопками ниже.')
 
 
 # Шаг 2.1: ввод текста прокладки (если выбрали "Да")
@@ -121,7 +97,7 @@ async def process_color(message: types.Message, state: FSMContext):
 async def process_lining_text(message: types.Message, state: FSMContext):
     await state.update_data(lining=message.text)
     await state.set_state(OrderForm.comment)
-    await message.answer("Введите для какого мероприятия 📝")
+    await message.answer("Введите для какого мероприятия 📝", reply_markup=ReplyKeyboardRemove())
 
 
 # Шаг 3: ввод комментария (обычный текст)
@@ -139,37 +115,50 @@ async def process_comment(message: types.Message, state: FSMContext):
 # Шаг 4: ввод города или нажатие кнопки "Поделиться контактом"
 @user_menu.message(OrderForm.city)
 async def process_city(message: types.Message, state: FSMContext):
-    if message.contact:
-        # Пользователь поделился контактом (если хотите обрабатывать)
-        # Тут можно, например, сразу переходить к следующему шагу
-        await state.update_data(contact=message.contact.phone_number)
-        await state.set_state(OrderForm.final)
-        await message.answer("Спасибо, контакт получен. Подтверждаем заказ.", reply_markup=ReplyKeyboardRemove())
-        # Можно здесь вызвать функцию отправки заказа
-    else:
-        # Пользователь ввел город текстом
-        await state.update_data(city=message.text)
-        # Теперь спросим контакт с кнопкой "Поделиться контактом"
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="Поделиться контактом", request_contact=True)]
-            ],
-            resize_keyboard=True,
-            one_time_keyboard=True
-        )
-        await state.set_state(OrderForm.contact)
-        await message.answer("Введите ваш номер телефона 📞 или нажмите кнопку ниже, чтобы поделиться контактом", reply_markup=keyboard)
+    await state.update_data(city=message.text)
+    # Теперь спросим контакт с кнопкой "Поделиться контактом"
+    await state.set_state(OrderForm.contact)
+    await message.answer("Введите ваш номер телефона 📞 или нажмите кнопку ниже, чтобы поделиться контактом", reply_markup=keyboard_phone)
 
 
 # Шаг 5: ввод номера телефона или нажатие кнопки "Поделиться контактом"
 @user_menu.message(OrderForm.contact)
 async def process_contact(message: types.Message, state: FSMContext, session: AsyncSession):
+    tg_id = message.from_user.id
+    
     if message.contact:
         phone = message.contact.phone_number
     else:
         phone = message.text
 
+    if not validate_phone(phone):
+        await message.answer("❌ Введите корректный номер телефона (+79998887766)")
+        return
+
+    data = await state.get_data()
+
+    if not validate_city(data.get("city", "")):
+        await message.answer("❌ Введите корректный город")
+        return
+
     await state.update_data(contact=phone)
+    data = await state.get_data()
+    user = await find_user_by_id(session, tg_id)
+
+    # ✅ Берём product_id из FSM
+    product_id = data.get("product_id")
+    product = await find_product(session,product_id)
+
+    order = await create_order(
+        session=session,
+        user_id=user.id,
+        product_id=product_id,  # теперь динамический ID
+        color=data["color"],
+        lining=data["lining"].lower() == "да",
+        event=data["comment"],
+        city=data["city"],
+        phone=data["contact"]
+    )
 
     data = await state.get_data()
 
@@ -178,9 +167,10 @@ async def process_contact(message: types.Message, state: FSMContext, session: As
         f"Мы свяжемся с вами в ближайшее время.\n\n"
         f"Если захотите что-то изменить — просто напишите нам."
     )
+    # 📦 Сообщение админу с названием товара
     admin_message = (
         f"🆕 Новый заказ!\n"
-        f"Товар: Тут товар\n"
+        f"Товар: {product.name if product else 'Не найден'}\n"
         f"Цвет: {data.get('color')}\n"
         f"Подклад: {data.get('lining')}\n"
         f"Комментарий: {data.get('comment')}\n"
@@ -188,6 +178,7 @@ async def process_contact(message: types.Message, state: FSMContext, session: As
         f"Телефон: {data.get('contact')}\n"
         f"Пользователь: @{message.from_user.username or message.from_user.full_name}"
     )
+
 
     # Отправляем клиенту
     await message.answer(client_message, reply_markup=ReplyKeyboardRemove())

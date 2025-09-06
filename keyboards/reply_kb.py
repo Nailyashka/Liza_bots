@@ -69,16 +69,44 @@ def get_keyboard(
 
 
 
+keyboard_yes_no = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Да"), KeyboardButton(text="Нет")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+keyboard_phone = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Поделиться контактом", request_contact=True)]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
 
 
 
-# start_kb2 = ReplyKeyboardBuilder()
-# start_kb2.add(
-#     KeyboardButton(text='Меню'), 
-#     KeyboardButton(text='О магазине'),
-#     KeyboardButton(text='Варианты доставки'),
-#     KeyboardButton(text='Варианты оплаты'),
-# ).adjust(2,2)
-
-# start_kb3.attach(start_kb2).row(KeyboardButton(text='Оставьте отзыв'))
-
+def make_reply_keyboard(
+    *btns: str,
+    placeholder: str = None,
+    request_contact: int = None,
+    request_location: int = None,
+    sizes: tuple[int] = (2,)
+):
+    keyboard = ReplyKeyboardBuilder()
+    
+    for index, text in enumerate(btns,start=0):
+        
+        if request_contact and request_contact == index:
+            keyboard.add(KeyboardButton(text=text, request_contact=True))
+        
+        elif request_location and request_location == index:
+            keyboard.add(KeyboardButton(text=text, request_location=request_location))
+        
+        else:
+            keyboard.add(KeyboardButton(text=text))
+    
+    return keyboard.adjust(*sizes).as_markup(
+        resize_keyboard=True, input_field_placeholder=placeholder)
+    

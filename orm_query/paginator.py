@@ -19,25 +19,6 @@ class UniversalPaginator:
     #     # Считаем общее количество (нужно для кнопок "Дальше/Назад")
     #     #* base_query = к примеру: base_query = select(Car).where(Car.city_id == 1) просто какой-то запрос
 
-    #     total_query = base_query.with_only_columns(func.count()).order_by(None)
-    #     total_result = await session.execute(total_query)
-    #     total_count = total_result.scalar()
-
-    #     # Получаем элементы с LIMIT+OFFSET
-    #     query = base_query.offset(offset).limit(limit)
-    #     result = await session.execute(query)
-    #     items = result.scalars().all()
-
-    #     total_pages = math.ceil(total_count / self.per_page) if total_count else 1
-
-    #     return {
-    #         "items": items,
-    #         "total_count": total_count,
-    #         "total_pages": total_pages,
-    #         "current_page": self.page,
-    #         "has_next": self.page < total_pages,
-    #         "has_previous": self.page > 1,
-    #     }
     async def paginate_query(self, session: AsyncSession, base_query):
         offset, limit = self._calc_offsets()
 
